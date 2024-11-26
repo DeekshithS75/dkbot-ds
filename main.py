@@ -12,8 +12,8 @@ intents.members = True
 bot = commands.Bot(command_prefix="^", intents=intents)
 
 invite_roles = {
-    #FLC, SOSC
-    "mxErxHaQHd": [1310901012046938175, 1310901365131968543],
+    #FLC
+    "mxErxHaQHd": [1310901012046938175],
 }
 
 @bot.event
