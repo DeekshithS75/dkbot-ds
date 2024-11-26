@@ -32,4 +32,4 @@ async def on_member_join(member):
                     print(f"Assigned role '{role.name}' to {member.name} via invite '{invite.code}'.")
             return
 
-bot.run(config['TOKEN'])
+bot.run(TOKEN)
