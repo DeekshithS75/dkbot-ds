@@ -15,7 +15,17 @@ invite_roles = {
     #FLC
     "mxErxHaQHd": [1310901012046938175],
     #SOSC Sahyadri
-    "vuwSmAdTXU": [1310901365131968543]
+    "vuwSmAdTXU": [1310901365131968543],
+    #Dev Nation
+    "NbDt3Qkfbw": [1310901438926553149],
+    #CoRE,
+    "xbQKb6A6": [1310901518106493048],
+    #GDG SJEC
+    "SwPv7knXkp": [1310930958547030047],
+    #Sceptix
+    "SwPv7knXkp": [1310901774361563206],
+    #Glug Pace
+    "2wYqMnuYbs": [1310901583231451137]
 }
 
 @bot.event
