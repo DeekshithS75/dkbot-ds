@@ -25,7 +25,9 @@ invite_roles = {
     #Sceptix
     "SwPv7knXkp": [1310901774361563206],
     #Glug Pace
-    "2wYqMnuYbs": [1310901583231451137]
+    "2wYqMnuYbs": [1310901583231451137],
+    #CLuster Members
+    "qcNJYUT4": [1350132344417157140]
 }
 
 @bot.event
