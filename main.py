@@ -20,8 +20,8 @@ intents.members = True
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 WHATSAPP_URL = os.getenv("WHATSAPP_URL")
-DISCORD_INVITE_URL = os.getenv("DISCORD_INVITE_URL")
-ROLE_ID = int(os.getenv("ROLE_ID"))
+DISCORD_INVITE_URL = "https://discord.gg/g2MHZGpdrc"
+ROLE_ID = 1350132344417157140
 SPREADSHEET_NAME = os.getenv("SPREADSHEET_NAME", "Sheet1")
 
 # google sheets
@@ -51,6 +51,7 @@ invite_roles = {
     #CLuster Members
     "g2MHZGpdrc": [1350132344417157140]
 }
+
 
 @bot.event
 async def on_member_join(member):
