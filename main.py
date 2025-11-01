@@ -100,7 +100,7 @@ def send_email(recipient_email: str):
            style="background:#5865F2; color:white; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:bold;">
            Join Discord Server
         </a>
-        <a href="{WHATSAPP_URL}"
+        <a href="{WHATSAPP_URL+recipient_email}"
            style="background:#25D366; color:white; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:bold; margin-left:10px;">
            Join WhatsApp Group
         </a>
