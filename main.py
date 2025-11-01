@@ -131,16 +131,24 @@ def send_email(recipient_email: str, name: str):
         Hi {name}, we’re excited to welcome you to the <b>DK24 Discord Community and DK24 Cluster WhatsApp Group</b> - a collaborative hub for students and developers from partner communities.
         Click below to join and be part of our amazing network! Once joined use <code>/verify your-email</code> command with your registered email to claim your cluster role.
       </p>
-      <div style="text-align:center; margin:30px 0;">
-        <a href="{CLUSTER_INVITE_URL}"
-           style="background:#5865F2; color:white; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:bold;">
-           Join Discord Server
-        </a>
-        <a href="{WHATSAPP_URL}"
-           style="background:#25D366; color:white; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:bold; margin-left:10px;">
-           Join WhatsApp Group
-        </a>
-      </div>
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="text-align:center; margin:30px 0;">
+        <tr>
+          <td align="center" style="padding-bottom: 10px;">
+            <a href="{CLUSTER_INVITE_URL}"
+               style="background:#5865F2; color:white; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:bold; display:inline-block; width:80%; max-width:300px;">
+               Join Discord Server
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding-top: 10px;">
+            <a href="{WHATSAPP_URL}"
+               style="background:#25D366; color:white; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:bold; display:inline-block; width:80%; max-width:300px;">
+               Join WhatsApp Group
+            </a>
+          </td>
+        </tr>
+      </table>
       <p style="font-size:13px; color:#555; text-align:center;">
         Please use the <b>/verify</b> command on Discord with your email to claim your cluster role once joined.
       </p>
