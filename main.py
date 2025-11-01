@@ -136,7 +136,7 @@ def send_email(recipient_email: str, name: str):
            style="background:#5865F2; color:white; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:bold;">
            Join Discord Server
         </a>
-        <a href="{WHATSAPP_URL+recipient_email}"
+        <a href="{WHATSAPP_URL}"
            style="background:#25D366; color:white; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:bold; margin-left:10px;">
            Join WhatsApp Group
         </a>
@@ -163,7 +163,7 @@ def send_email(recipient_email: str, name: str):
 @bot.tree.command(name="invite", description="Send invites to accepted users")
 @commands.has_permissions(administrator=True)
 async def invite_command(interaction: discord.Interaction):
-    await interaction.response.send_message("📨 Processing invites...", ephemeral=True)
+    await interaction.response.send_message("📨 Processing invites...")
 
     try:
         rows = sheet.get_all_records()
@@ -182,10 +182,10 @@ async def invite_command(interaction: discord.Interaction):
                 except Exception as e:
                     print(f"❌ Failed to send to {email}: {e}")
 
-        await interaction.followup.send(f"✅ Sent {count} invites successfully!", ephemeral=True)
+        await interaction.followup.send(f"✅ Sent {count} invites successfully!")
 
     except Exception as e:
-        await interaction.followup.send(f"❌ Failed to process Google Sheet: {e}", ephemeral=True)
+        await interaction.followup.send(f"❌ Failed to process Google Sheet: {e}")
 
 
 @bot.tree.command(name="verify", description="Verify your email to claim your cluster role")
@@ -215,7 +215,7 @@ async def verify_command(interaction: discord.Interaction, email: str):
                     return
         await interaction.followup.send("❌ Email not found or not eligible.", ephemeral=True)
     except Exception as e:
-        print(e)
-        await interaction.followup.send(f"❌ Verification failed: {e}", ephemeral=True)
+        print("❌ Verification failed!: "+e)
+        await interaction.followup.send(f"❌ Verification failed!", ephemeral=True)
 
 bot.run(TOKEN)
