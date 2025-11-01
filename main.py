@@ -20,16 +20,15 @@ intents.members = True
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 WHATSAPP_URL = os.getenv("WHATSAPP_URL")
-DISCORD_INVITE_URL = "https://discord.gg/g2MHZGpdrc"
+CLUSTER_INVITE_URL = "https://discord.gg/g2MHZGpdrc"
 ROLE_ID = 1350132344417157140
-SPREADSHEET_NAME = os.getenv("SPREADSHEET_NAME", "Sheet1")
-
+GOOGLE_SHEET_CSV_URL = os.getenv("GOOGLE_SHEET_CSV_URL")
 # google sheets
 google_creds = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_info(google_creds, scopes=SCOPES)
 client = gspread.authorize(creds)
-sheet = client.open(SPREADSHEET_NAME).sheet1
+sheet = client.open_by_url(GOOGLE_SHEET_CSV_URL).get_worksheet(0)
 
 bot = commands.Bot(command_prefix="^", intents=intents)
 
@@ -93,10 +92,10 @@ def send_email(recipient_email: str):
       </div>
       <p style="color:#333; font-size:15px;">
         We’re excited to welcome you to the <b>DK24 Discord Community and DK24 Cluster WhatsApp Group</b> - a collaborative hub for students and developers from partner communities.  
-        Click below to join and be part of our amazing network! Once joined use <code>/verify</code> command with your registered email to claim your cluster role.
+        Click below to join and be part of our amazing network! Once joined use <code>/verify your-email</code> command with your registered email to claim your cluster role.
       </p>
       <div style="text-align:center; margin:30px 0;">
-        <a href="{DISCORD_INVITE_URL}"
+        <a href="{CLUSTER_INVITE_URL}"
            style="background:#5865F2; color:white; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:bold;">
            Join Discord Server
         </a>
@@ -135,6 +134,7 @@ async def invite_command(interaction: discord.Interaction):
         count = 0
 
         for i, row in enumerate(rows, start=2):
+            print(i, row)
             responded = str(row.get("responded", "")).strip().lower()
             accepted = str(row.get("accepted", "")).strip().lower()
             email = str(row.get("email", "")).strip()
