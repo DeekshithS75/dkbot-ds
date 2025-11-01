@@ -3,30 +3,34 @@ from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
 import os
-import smtplib
-from email.message import EmailMessage
 import json
 import gspread
 from google.oauth2.service_account import Credentials
+import base64
+from email.mime.text import MIMEText
+from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+import pickle
+import sys
 
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
 
 intents = discord.Intents.default()
-intents.members = True 
+intents.members = True
 
-# env
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
+GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+TOKEN_PICKLE_PATH = '/key/token.pickle'
 WHATSAPP_URL = os.getenv("WHATSAPP_URL")
 CLUSTER_INVITE_URL = "https://discord.gg/g2MHZGpdrc"
 ROLE_ID = 1350132344417157140
 GOOGLE_SHEET_CSV_URL = os.getenv("GOOGLE_SHEET_CSV_URL")
+
 # google sheets
-google_creds = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-creds = Credentials.from_service_account_info(google_creds, scopes=SCOPES)
+SHEETS_SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+google_creds_json = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
+creds = Credentials.from_service_account_info(google_creds_json, scopes=SHEETS_SCOPES)
 client = gspread.authorize(creds)
 sheet = client.open_by_url(GOOGLE_SHEET_CSV_URL).get_worksheet(0)
 
@@ -60,8 +64,7 @@ async def on_member_join(member):
     # Check which invite was used
     for invite in updated_invites:
         if invite.code in invite_roles:
-            role_ids = invite_roles[invite.code]
-            for role_id in role_ids:
+            for role_id in invite_roles[invite.code]:
                 role = guild.get_role(role_id)
                 if role:
                     await member.add_roles(role)
@@ -74,15 +77,49 @@ async def on_ready():
     await bot.tree.sync()
     print("Slash commands synced.")
 
+def get_gmail_service():
+    creds = None
 
-def send_email(recipient_email: str):
-    msg = EmailMessage()
-    msg["Subject"] = "🎉 Congratulations! You are selected for DK24 Cluster. 🎉"
-    msg["From"] = EMAIL_USER
-    msg["To"] = recipient_email
+    if os.path.exists(TOKEN_PICKLE_PATH):
+        with open(TOKEN_PICKLE_PATH, 'rb') as token:
+            creds = pickle.load(token)
 
-    msg.set_content(
-        f"""
+    if not creds:
+        encoded_token = os.getenv("GMAIL_API_TOKEN_BASE64")
+        if encoded_token:
+            os.makedirs(os.path.dirname(TOKEN_PICKLE_PATH), exist_ok=True)
+            decoded_token = base64.b64decode(encoded_token)
+            creds = pickle.loads(decoded_token)
+            with open(TOKEN_PICKLE_PATH, 'wb') as token_file:
+                pickle.dump(creds, token_file)
+                print(f"Initial token loaded from environment and saved to {TOKEN_PICKLE_PATH}")
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+                with open(TOKEN_PICKLE_PATH, 'wb') as token_file:
+                    pickle.dump(creds, token_file)
+                    print(f"Gmail token refreshed and saved to {TOKEN_PICKLE_PATH}")
+            except Exception as e:
+                print(f"Error refreshing Gmail token: {e}", file=sys.stderr)
+                sys.exit(1)
+        else:
+            print("Gmail token not found or invalid. Set GMAIL_API_TOKEN_BASE64 for initial setup.", file=sys.stderr)
+            sys.exit(1)
+
+    return build('gmail', 'v1', credentials=creds)
+
+def create_message(sender, to, subject, message_text):
+    message = MIMEText(message_text, 'html')
+    message['to'] = to
+    message['from'] = sender
+    message['subject'] = subject
+    return {'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}
+
+def send_email(recipient_email: str, name: str):
+    service = get_gmail_service()
+    html_content = f"""
 <html>
   <body style="font-family: Arial, sans-serif; background-color:#f5f7fa; padding:20px;">
     <div style="max-width:600px; margin:auto; background:white; border-radius:12px; padding:30px; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
@@ -91,7 +128,7 @@ def send_email(recipient_email: str):
         <h2 style="color:#2b2d42;">You're Invited to Join the DK24 Cluster 🎉</h2>
       </div>
       <p style="color:#333; font-size:15px;">
-        We’re excited to welcome you to the <b>DK24 Discord Community and DK24 Cluster WhatsApp Group</b> - a collaborative hub for students and developers from partner communities.  
+        Hi {name}, we’re excited to welcome you to the <b>DK24 Discord Community and DK24 Cluster WhatsApp Group</b> - a collaborative hub for students and developers from partner communities.
         Click below to join and be part of our amazing network! Once joined use <code>/verify your-email</code> command with your registered email to claim your cluster role.
       </p>
       <div style="text-align:center; margin:30px 0;">
@@ -114,14 +151,13 @@ def send_email(recipient_email: str):
     </div>
   </body>
 </html>
-""",
-        subtype="html",
-    )
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(EMAIL_USER, EMAIL_PASS)
-        smtp.send_message(msg)
-        print(f"✅ Sent invite email to {recipient_email}")
+"""
+    message = create_message('me', recipient_email, "🎉 Congratulations! You are selected for DK24 Cluster. 🎉", html_content)
+    try:
+        sent_message = service.users().messages().send(userId='me', body=message).execute()
+        print(f"✅ Sent invite email to {recipient_email}, Message ID: {sent_message['id']}")
+    except Exception as e:
+        print(f"❌ Failed to send to {recipient_email}: {e}")
 
 
 @bot.tree.command(name="invite", description="Send invites to accepted users")
@@ -134,14 +170,13 @@ async def invite_command(interaction: discord.Interaction):
         count = 0
 
         for i, row in enumerate(rows, start=2):
-            print(i, row)
             responded = str(row.get("responded", "")).strip().lower()
             accepted = str(row.get("accepted", "")).strip().lower()
             email = str(row.get("email", "")).strip()
 
             if responded == "no" and accepted == "yes" and email:
                 try:
-                    send_email(email)
+                    send_email(email, row.get("firstName", "")+" "+row.get("lastName", ""))
                     sheet.update_cell(i, list(row.keys()).index("responded") + 1, "yes")
                     count += 1
                 except Exception as e:
@@ -178,10 +213,9 @@ async def verify_command(interaction: discord.Interaction, email: str):
                     await interaction.followup.send("✅ Role successfully claimed!", ephemeral=True)
                     print(f"Assigned role to {member.name}")
                     return
-
         await interaction.followup.send("❌ Email not found or not eligible.", ephemeral=True)
-
     except Exception as e:
+        print(e)
         await interaction.followup.send(f"❌ Verification failed: {e}", ephemeral=True)
 
 bot.run(TOKEN)
