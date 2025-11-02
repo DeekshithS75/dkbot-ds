@@ -1,2 +1,7 @@
-python-dotenv==1.0.1
-discord.py==2.4.0
+discord.py
+python-dotenv
+gspread
+google-auth
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
