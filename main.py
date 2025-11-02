@@ -124,7 +124,7 @@ def send_email(recipient_email: str, name: str):
   <body style="font-family: Arial, sans-serif; background-color:#f5f7fa; padding:20px;">
     <div style="max-width:600px; margin:auto; background:white; border-radius:12px; padding:30px; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
       <div style="text-align:center;">
-        <img src="https://dk24.org/logo.png" alt="DK24 Logo" width="100" style="margin-bottom:15px;">
+        <img src="https://dk24.org/logo_new.png" alt="DK24 Logo" width="100" style="margin-bottom:15px;">
         <h2 style="color:#2b2d42;">You're Invited to Join the DK24 Cluster 🎉</h2>
       </div>
       <p style="color:#333; font-size:15px;">
