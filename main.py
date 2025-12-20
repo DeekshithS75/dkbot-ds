@@ -21,7 +21,7 @@ intents = discord.Intents.default()
 intents.members = True
 
 GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.send']
-TOKEN_PICKLE_PATH = '/key/token.pickle'
+TOKEN_PICKLE_PATH = 'key/token.pickle'
 WHATSAPP_URL = os.getenv("WHATSAPP_URL")
 CLUSTER_INVITE_URL = "https://discord.gg/g2MHZGpdrc"
 ROLE_ID = 1350132344417157140
@@ -176,6 +176,7 @@ async def invite_command(interaction: discord.Interaction):
     try:
         rows = sheet.get_all_records()
         count = 0
+        total = 0
 
         for i, row in enumerate(rows, start=2):
             responded = str(row.get("responded", "")).strip().lower()
@@ -184,13 +185,14 @@ async def invite_command(interaction: discord.Interaction):
 
             if responded == "no" and accepted == "yes" and email:
                 try:
+                    total += 1
                     send_email(email, row.get("firstName", "")+" "+row.get("lastName", ""))
                     sheet.update_cell(i, list(row.keys()).index("responded") + 1, "yes")
                     count += 1
                 except Exception as e:
                     print(f"❌ Failed to send to {email}: {e}")
 
-        await interaction.followup.send(f"✅ Sent {count} invites successfully!")
+        await interaction.followup.send(f"✅ Sent {count}/{total} invites successfully!")
 
     except Exception as e:
         await interaction.followup.send(f"❌ Failed to process Google Sheet: {e}")
