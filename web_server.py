@@ -67,6 +67,35 @@ async def handle_new_college_applicant_webhook(request):
         logging.error(f"Error processing college applicant webhook: {e}")
         return web.Response(status=500, text="Internal Server Error")
 
+async def handle_new_event_webhook(request):
+    """Handles incoming webhooks with new event data."""
+    # Verify the secret key
+    secret_key = request.headers.get('X-Secret-Key')
+    if secret_key != config.WEBHOOK_SECRET_KEY:
+        logging.warning("Received event webhook with invalid secret key.")
+        return web.Response(status=401, text="Unauthorized")
+
+    try:
+        data = await request.json()
+        logging.info(f"Received valid event webhook with data: {data}")
+
+        bot = request.app['bot']
+        sheets_client = request.app['sheets_client']
+
+        # Add to Google Sheet and get the unique ID
+        event_id = sheets_client.add_event_submission(data)
+
+        if event_id:
+            # Pass the data and ID to the bot to handle the Discord message
+            await bot.post_event_approval_card(data, event_id)
+            return web.Response(status=200, text="OK")
+        else:
+            return web.Response(status=500, text="Internal Server Error: Failed to add event to sheet.")
+
+    except Exception as e:
+        logging.error(f"Error processing event webhook: {e}")
+        return web.Response(status=500, text="Internal Server Error")
+
 async def start_web_server(bot, sheets_client):
     """Initializes and starts the aiohttp web server."""
     app = web.Application()
@@ -74,6 +103,7 @@ async def start_web_server(bot, sheets_client):
     app['sheets_client'] = sheets_client # Make the sheets_client instance available
     app.router.add_post('/api/new-applicant', handle_new_applicant_webhook)
     app.router.add_post('/api/new-college-applicant', handle_new_college_applicant_webhook)
+    app.router.add_post('/api/new-event', handle_new_event_webhook)
 
     runner = web.AppRunner(app)
     await runner.setup()

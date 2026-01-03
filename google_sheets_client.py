@@ -2,9 +2,15 @@ import gspread
 from google.oauth2.service_account import Credentials
 import logging
 import config
+import random
+import string
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def generate_random_id(length=6):
+    """Generates a random alphanumeric ID of a given length."""
+    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
 
 class GoogleSheetsClient:
     def __init__(self):
@@ -14,7 +20,7 @@ class GoogleSheetsClient:
         self._ensure_columns('college')
 
     def _get_sheets(self):
-        """Connects to Google Sheets and returns worksheet objects for individual and college applicants."""
+        """Connects to Google Sheets and returns worksheet objects for all required sheets."""
         try:
             if not config.GOOGLE_SERVICE_ACCOUNT_EMAIL or not config.GOOGLE_PRIVATE_KEY:
                 raise ValueError("GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY must be set in .env")
@@ -32,15 +38,28 @@ class GoogleSheetsClient:
             
             individual_sheet = spreadsheet.get_worksheet(0)
             college_sheet = spreadsheet.get_worksheet(1)
+            events_submission_sheet = spreadsheet.get_worksheet(2)
+            events_accepted_sheet = spreadsheet.get_worksheet(3)
+            events_rejected_sheet = spreadsheet.get_worksheet(4)
             
-            logging.info("✅ Successfully connected to both Google Sheets worksheets.")
-            return {'individual': individual_sheet, 'college': college_sheet}
+            logging.info("✅ Successfully connected to all Google Sheets worksheets.")
+            return {
+                'individual': individual_sheet, 
+                'college': college_sheet,
+                'events_submission': events_submission_sheet,
+                'events_accepted': events_accepted_sheet,
+                'events_rejected': events_rejected_sheet
+            }
         except Exception as e:
             logging.error(f"❌ Failed to connect to Google Sheets: {e}")
             raise
 
     def _ensure_columns(self, applicant_type: str):
         """Ensures that the necessary columns exist in the given sheet, adding them if they don't."""
+        if applicant_type not in self.worksheets:
+            logging.warning(f"Worksheet for '{applicant_type}' not found. Skipping column check.")
+            return
+            
         worksheet = self.worksheets[applicant_type]
         try:
             headers = worksheet.row_values(1)
@@ -56,6 +75,9 @@ class GoogleSheetsClient:
                 ]
             else:
                 required_cols = []
+
+            if not required_cols:
+                return
 
             first_empty_col = len(headers) + 1
             
@@ -98,6 +120,65 @@ class GoogleSheetsClient:
             logging.error(f"Failed to add college applicant to sheet: {e}")
             return False
 
+    def add_event_submission(self, data: dict) -> str:
+        """Appends a new row with event data to the Events Submission sheet and returns the event ID."""
+        try:
+            worksheet = self.worksheets['events_submission']
+            headers = worksheet.row_values(1)
+            event_id = generate_random_id()
+            data['ID'] = event_id
+            
+            new_row = [str(data.get(header, "")) for header in headers]
+
+            worksheet.append_row(new_row, value_input_option='USER_ENTERED')
+            logging.info(f"Successfully added event submission with ID: {event_id}")
+            return event_id
+        except Exception as e:
+            logging.error(f"Failed to add event submission to sheet: {e}")
+            return None
+
+    def _find_row_by_id(self, worksheet, event_id: str):
+        """Finds a row in a worksheet by the event ID."""
+        try:
+            id_column_index = worksheet.row_values(1).index("ID") + 1
+            cell = worksheet.find(event_id, in_column=id_column_index)
+            return cell.row, worksheet.row_values(cell.row)
+        # except (gspread.exceptions.CellNotFound, ValueError):
+        #     logging.warning(f"Could not find event with ID '{event_id}' in sheet '{worksheet.title}'.")
+        #     return None, None
+        except Exception as e:
+            logging.error(f"Error finding event ID '{event_id}' in sheet '{worksheet.title}': {e}")
+            return None, None
+
+    def _move_event(self, source_sheet_name: str, dest_sheet_name: str, event_id: str) -> bool:
+        """Moves an event row from a source sheet to a destination sheet."""
+        try:
+            source_sheet = self.worksheets[source_sheet_name]
+            dest_sheet = self.worksheets[dest_sheet_name]
+
+            row_index, row_data = self._find_row_by_id(source_sheet, event_id)
+            if row_index and row_data:
+                dest_sheet.append_row(row_data, value_input_option='USER_ENTERED')
+                source_sheet.delete_rows(row_index)
+                logging.info(f"Moved event '{event_id}' from '{source_sheet.title}' to '{dest_sheet.title}'.")
+                return True
+            return False
+        except Exception as e:
+            logging.error(f"Failed to move event '{event_id}': {e}")
+            return False
+
+    def accept_event_submission(self, event_id: str) -> bool:
+        """Moves an event from the submission sheet to the accepted sheet."""
+        return self._move_event('events_submission', 'events_accepted', event_id)
+
+    def reject_event_submission(self, event_id: str) -> bool:
+        """Moves an event from the submission sheet to the rejected sheet."""
+        return self._move_event('events_submission', 'events_rejected', event_id)
+
+    def revert_rejection(self, event_id: str) -> bool:
+        """Moves an event from the rejected sheet back to the submission sheet."""
+        return self._move_event('events_rejected', 'events_submission', event_id)
+
     # --- Methods below this line operate on the default 'individual' sheet ---
 
     def get_all_records(self):
@@ -112,8 +193,8 @@ class GoogleSheetsClient:
         """Finds a cell matching the query in the individual sheet."""
         try:
             return self.sheet.find(query)
-        except gspread.exceptions.CellNotFound:
-            return None
+        # except gspread.exceptions.CellNotFound:
+        #     return None
         except Exception as e:
             logging.error(f"Error finding cell for query '{query}': {e}")
             return None
@@ -165,9 +246,9 @@ class GoogleSheetsClient:
             self.sheet.update_cell(cell.row, responded_col_index, "yes")
             logging.info(f"Successfully updated status for {email}.")
             return True
-        except (ValueError, gspread.exceptions.CellNotFound) as e:
-            logging.error(f"Column not found or cell not found for {email}: {e}")
-            return False
+        # except (ValueError, gspread.exceptions.CellNotFound) as e:
+        #     logging.error(f"Column not found or cell not found for {email}: {e}")
+        #     return False
         except Exception as e:
             logging.error(f"An unexpected error occurred while updating status for {email}: {e}")
             return False
@@ -187,9 +268,9 @@ class GoogleSheetsClient:
             self.sheet.update_cell(cell.row, claimed_col_index, "yes")
             logging.info(f"Successfully updated role claimed status for {email}.")
             return True
-        except (ValueError, gspread.exceptions.CellNotFound) as e:
-            logging.error(f"Column not found or cell not found for {email}: {e}")
-            return False
+        # except (ValueError, gspread.exceptions.CellNotFound) as e:
+        #     logging.error(f"Column not found or cell not found for {email}: {e}")
+        #     return False
         except Exception as e:
             logging.error(f"An unexpected error occurred while updating role status for {email}: {e}")
             return False
