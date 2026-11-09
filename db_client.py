@@ -324,35 +324,34 @@ ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
             """
         )
 
-    async def async_unsubscribe_email(self, token: str) -> bool:
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
+    async def async_get_digest_recipients(self):
+        subscribers = await self.async_get_active_email_subscribers()
+        recipients = []
 
-        row = await self._fetchrow(
-            """
-            UPDATE email_unsubscribe_tokens
-            SET used_at = CURRENT_TIMESTAMP
-            WHERE token_hash = %s
-              AND used_at IS NULL
-              AND expires_at > CURRENT_TIMESTAMP
-            RETURNING subscriber_id
-            """,
-            token_hash
-        )
+        for subscriber in subscribers:
+            token = secrets.token_urlsafe(32)
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
 
-        if not row:
-            return False
+            await self._execute(
+                """
+                INSERT INTO email_unsubscribe_tokens
+                    (subscriber_id, token_hash, expires_at)
+                VALUES (
+                    %s,
+                    %s,
+                    CURRENT_TIMESTAMP + INTERVAL '365 days'
+                )
+                """,
+                subscriber["id"],
+                token_hash
+            )
 
-        result = await self._execute(
-            """
-            UPDATE email_subscribers
-            SET is_active = FALSE,
-                unsubscribed_at = CURRENT_TIMESTAMP
-            WHERE id = %s AND is_active = TRUE
-            """,
-            row["subscriber_id"]
-        )
+            recipients.append({
+                "email": subscriber["email"],
+                "unsubscribe_token": token
+            })
 
-        return result > 0
+        return recipients
 
     async def async_get_records_by_status(self, status: str):
         rows = await self._fetch('SELECT * FROM individuals WHERE accepted = %s', status)

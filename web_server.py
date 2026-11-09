@@ -172,7 +172,30 @@ async def handle_new_applicant_webhook(request):
         logging.error(f"Error processing webhook: {e}")
         return web.Response(status=500, text="Internal Server Error")
 
+async def handle_get_active_subscribers(request):
+    secret_key = request.headers.get('X-Secret-Key')
 
+    if secret_key != config.WEBHOOK_SECRET_KEY:
+        return web.Response(status=401, text="Unauthorized")
+
+    try:
+        sheets_client = request.app['sheets_client']
+        subscribers = await sheets_client.async_get_active_email_subscribers()
+
+        return web.json_response({
+            'subscribers': [
+                {'email': subscriber['email']}
+                for subscriber in subscribers
+            ],
+            'count': len(subscribers)
+        })
+
+    except Exception:
+        logging.exception("Failed to fetch active email subscribers")
+        return web.json_response(
+            {'error': 'Failed to fetch subscribers'},
+            status=500
+        )
 async def handle_new_college_applicant_webhook(request):
     """Handles incoming webhooks with new college applicant data."""
     # Verify the secret key
@@ -238,6 +261,27 @@ async def handle_new_event_webhook(request):
     except Exception as e:
         logging.error(f"Error processing event webhook: {e}")
         return web.Response(status=500, text="Internal Server Error")
+async def handle_get_digest_recipients(request):
+    secret_key = request.headers.get('X-Secret-Key')
+
+    if secret_key != config.WEBHOOK_SECRET_KEY:
+        return web.Response(status=401, text="Unauthorized")
+
+    try:
+        sheets_client = request.app['sheets_client']
+        recipients = await sheets_client.async_get_digest_recipients()
+
+        return web.json_response({
+            'recipients': recipients,
+            'count': len(recipients)
+        })
+
+    except Exception:
+        logging.exception("Failed to prepare digest recipients")
+        return web.json_response(
+            {'error': 'Failed to prepare digest recipients'},
+            status=500
+        )
 
 async def start_web_server(bot, sheets_client):
     """Initializes and starts the aiohttp web server."""
@@ -251,6 +295,14 @@ async def start_web_server(bot, sheets_client):
     app.router.add_post('/api/email-subscriptions', handle_subscribe_email)
     app.router.add_get('/api/email-subscriptions/unsubscribe', handle_unsubscribe_email)
     app.router.add_post('/api/email-subscriptions/unsubscribe', handle_unsubscribe_email_post)
+    app.router.add_get(
+    '/api/email-subscriptions',
+    handle_get_active_subscribers
+)
+    app.router.add_get(
+    '/api/email-subscriptions/digest-recipients',
+    handle_get_digest_recipients
+)
 
     runner = web.AppRunner(app)
     await runner.setup()
