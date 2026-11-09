@@ -1,6 +1,7 @@
 from aiohttp import web
 import logging
 import config
+import re
 
 async def handle_get_approved_events(request):
     """Returns approved events for public calendar consumption."""
@@ -13,6 +14,122 @@ async def handle_get_approved_events(request):
         return web.json_response(
             {'error': 'Failed to fetch approved events'},
             status=500,
+        )
+
+async def handle_subscribe_email(request):
+    secret_key = request.headers.get('X-Secret-Key')
+
+    if secret_key != config.WEBHOOK_SECRET_KEY:
+        return web.Response(status=401, text="Unauthorized")
+
+    try:
+        data = await request.json()
+    except (ValueError, TypeError):
+        return web.json_response(
+            {'error': 'Invalid JSON'},
+            status=400
+        )
+
+    email = data.get('email')
+
+    if not isinstance(email, str):
+        return web.json_response(
+            {'error': 'Email is required'},
+            status=400
+        )
+
+    email = email.strip().lower()
+
+    if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email):
+        return web.json_response(
+            {'error': 'Invalid email address'},
+            status=400
+        )
+
+    try:
+        sheets_client = request.app['sheets_client']
+        result = await sheets_client.async_subscribe_email(email)
+
+        if not result:
+            return web.json_response(
+                {'error': 'Subscription failed'},
+                status=500
+            )
+
+        return web.json_response({
+            'message': result['status'],
+            'status': result['status']
+        })
+
+    except Exception:
+        logging.exception("Email subscription failed")
+        return web.json_response(
+            {'error': 'Subscription failed'},
+            status=500
+        )
+
+
+async def handle_unsubscribe_email(request):
+    token = request.query.get('token')
+
+    if not token:
+        return web.Response(status=400, text="Invalid unsubscribe link")
+
+    return web.Response(
+        text=f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Unsubscribe - DK24</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+        </head>
+        <body style="font-family:Arial,sans-serif;text-align:center;padding:40px">
+            <h2>Unsubscribe from DK24 event updates</h2>
+            <p>Are you sure you want to stop receiving event emails?</p>
+            <form method="POST" action="/api/email-subscriptions/unsubscribe">
+                <input type="hidden" name="token" value="{token}">
+                <button type="submit">Confirm unsubscribe</button>
+            </form>
+        </body>
+        </html>
+        """,
+        content_type='text/html'
+    )
+
+
+async def handle_unsubscribe_email_post(request):
+    try:
+        data = await request.post()
+        token = request.query.get('token') or data.get('token')
+
+        if not token:
+            return web.Response(status=400, text="Invalid unsubscribe request")
+
+        sheets_client = request.app['sheets_client']
+        success = await sheets_client.async_unsubscribe_email(token)
+
+        if not success:
+            return web.Response(
+                status=400,
+                text="Invalid or expired unsubscribe link"
+            )
+
+        if request.query.get('token'):
+            return web.Response(
+                status=200,
+                text="You have successfully unsubscribed from DK24 event updates."
+            )
+
+        return web.Response(
+            status=200,
+            text="You have successfully unsubscribed from DK24 event updates."
+        )
+
+    except Exception:
+        logging.exception("Email unsubscribe failed")
+        return web.Response(
+            status=500,
+            text="Unable to process unsubscribe request"
         )
 
 async def handle_new_applicant_webhook(request):
@@ -131,6 +248,9 @@ async def start_web_server(bot, sheets_client):
     app.router.add_post('/api/new-applicant', handle_new_applicant_webhook)
     app.router.add_post('/api/new-college-applicant', handle_new_college_applicant_webhook)
     app.router.add_post('/api/new-event', handle_new_event_webhook)
+    app.router.add_post('/api/email-subscriptions', handle_subscribe_email)
+    app.router.add_get('/api/email-subscriptions/unsubscribe', handle_unsubscribe_email)
+    app.router.add_post('/api/email-subscriptions/unsubscribe', handle_unsubscribe_email_post)
 
     runner = web.AppRunner(app)
     await runner.setup()

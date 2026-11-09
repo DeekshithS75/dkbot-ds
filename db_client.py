@@ -9,7 +9,8 @@ import random
 import asyncio
 from datetime import datetime
 from urllib.parse import urlparse, unquote
-
+import hashlib
+import secrets
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def generate_random_id(length=6):
@@ -121,6 +122,25 @@ class DatabaseClient:
                         level INTEGER DEFAULT 1,
                         last_message TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
+
+                    CREATE TABLE IF NOT EXISTS email_subscribers (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    unsubscribed_at TIMESTAMP WITH TIME ZONE,
+    unsubscribe_token_hash VARCHAR(64) UNIQUE
+);
+CREATE TABLE IF NOT EXISTS email_unsubscribe_tokens (
+    id SERIAL PRIMARY KEY,
+    subscriber_id INTEGER NOT NULL REFERENCES email_subscribers(id) ON DELETE CASCADE,
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    used_at TIMESTAMP WITH TIME ZONE
+);
+ALTER TABLE email_subscribers
+ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
                 ''')
                 conn.commit()
         finally:
@@ -266,6 +286,73 @@ class DatabaseClient:
             email
         )
         return res > 0
+    async def async_subscribe_email(self, email: str):
+        token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+        row = await self._fetchrow(
+            """
+            INSERT INTO email_subscribers
+                (email, is_active, unsubscribed_at, unsubscribe_token_hash)
+            VALUES (%s, TRUE, NULL, %s)
+            ON CONFLICT (email)
+            DO UPDATE SET
+                is_active = TRUE,
+                unsubscribed_at = NULL,
+                unsubscribe_token_hash = EXCLUDED.unsubscribe_token_hash
+            RETURNING id, email, is_active
+            """,
+            email.strip().lower(),
+            token_hash
+        )
+
+        if not row:
+            return None
+
+        return {
+            **dict(row),
+            "unsubscribe_token": token
+        }
+
+    async def async_get_active_email_subscribers(self):
+        return await self._fetch(
+            """
+            SELECT id, email
+            FROM email_subscribers
+            WHERE is_active = TRUE
+            ORDER BY created_at ASC
+            """
+        )
+
+    async def async_unsubscribe_email(self, token: str) -> bool:
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+        row = await self._fetchrow(
+            """
+            UPDATE email_unsubscribe_tokens
+            SET used_at = CURRENT_TIMESTAMP
+            WHERE token_hash = %s
+              AND used_at IS NULL
+              AND expires_at > CURRENT_TIMESTAMP
+            RETURNING subscriber_id
+            """,
+            token_hash
+        )
+
+        if not row:
+            return False
+
+        result = await self._execute(
+            """
+            UPDATE email_subscribers
+            SET is_active = FALSE,
+                unsubscribed_at = CURRENT_TIMESTAMP
+            WHERE id = %s AND is_active = TRUE
+            """,
+            row["subscriber_id"]
+        )
+
+        return result > 0
 
     async def async_get_records_by_status(self, status: str):
         rows = await self._fetch('SELECT * FROM individuals WHERE accepted = %s', status)
