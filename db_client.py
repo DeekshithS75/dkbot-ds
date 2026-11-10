@@ -180,7 +180,12 @@ ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(query, args)
-                return cur.fetchone()
+                row = cur.fetchone()
+                conn.commit()
+                return row
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             self.pool.putconn(conn)
 
@@ -286,24 +291,20 @@ ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
             email
         )
         return res > 0
-    async def async_subscribe_email(self, email: str):
-        token = secrets.token_urlsafe(32)
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
 
+    async def async_subscribe_email(self, email: str):
         row = await self._fetchrow(
             """
             INSERT INTO email_subscribers
-                (email, is_active, unsubscribed_at, unsubscribe_token_hash)
-            VALUES (%s, TRUE, NULL, %s)
+                (email, is_active, unsubscribed_at)
+            VALUES (%s, TRUE, NULL)
             ON CONFLICT (email)
             DO UPDATE SET
                 is_active = TRUE,
-                unsubscribed_at = NULL,
-                unsubscribe_token_hash = EXCLUDED.unsubscribe_token_hash
+                unsubscribed_at = NULL
             RETURNING id, email, is_active
             """,
-            email.strip().lower(),
-            token_hash
+            email.strip().lower()
         )
 
         if not row:
@@ -311,7 +312,7 @@ ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
 
         return {
             **dict(row),
-            "unsubscribe_token": token
+            "status": "subscribed"
         }
 
     async def async_get_active_email_subscribers(self):
@@ -353,6 +354,70 @@ ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
 
         return recipients
 
+    async def async_unsubscribe_email(self, token: str):
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+        return await asyncio.to_thread(
+            self._unsubscribe_email_sync,
+            token_hash
+        )
+
+    def _unsubscribe_email_sync(self, token_hash: str):
+        conn = self.pool.getconn()
+
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT t.id, s.id
+                    FROM email_unsubscribe_tokens t
+                    JOIN email_subscribers s
+                        ON s.id = t.subscriber_id
+                    WHERE t.token_hash = %s
+                        AND t.used_at IS NULL
+                        AND t.expires_at > CURRENT_TIMESTAMP
+                        AND s.is_active = TRUE
+                    FOR UPDATE OF t, s
+                    """,
+                    (token_hash,)
+                )
+
+                row = cur.fetchone()
+
+                if not row:
+                    conn.rollback()
+                    return False
+
+                token_id, subscriber_id = row
+
+                cur.execute(
+                    """
+                    UPDATE email_subscribers
+                    SET is_active = FALSE,
+                        unsubscribed_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (subscriber_id,)
+                )
+
+                cur.execute(
+                    """
+                    UPDATE email_unsubscribe_tokens
+                    SET used_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (token_id,)
+                )
+
+                conn.commit()
+                return True
+
+        except Exception:
+            conn.rollback()
+            raise
+
+        finally:
+            self.pool.putconn(conn)
     async def async_get_records_by_status(self, status: str):
         rows = await self._fetch('SELECT * FROM individuals WHERE accepted = %s', status)
         return [self._row_to_dict(row) for row in rows]

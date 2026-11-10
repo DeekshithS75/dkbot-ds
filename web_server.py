@@ -299,9 +299,10 @@ async def start_web_server(bot, sheets_client):
     '/api/email-subscriptions',
     handle_get_active_subscribers
 )
-    app.router.add_get(
+    app.router.add_post(
     '/api/email-subscriptions/digest-recipients',
     handle_get_digest_recipients
+
 )
 
     runner = web.AppRunner(app)
