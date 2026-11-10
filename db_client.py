@@ -292,7 +292,25 @@ ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
         )
         return res > 0
 
+    
     async def async_subscribe_email(self, email: str):
+        email = (email or "").strip().lower()
+
+        existing = await self._fetchrow(
+            """
+            SELECT id, email, is_active
+            FROM email_subscribers
+            WHERE email = %s
+            """,
+            email,
+        )
+
+        if existing and existing["is_active"]:
+            return {
+                **dict(existing),
+                "status": "already_subscribed",
+            }
+
         row = await self._fetchrow(
             """
             INSERT INTO email_subscribers
@@ -304,7 +322,7 @@ ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
                 unsubscribed_at = NULL
             RETURNING id, email, is_active
             """,
-            email.strip().lower()
+            email,
         )
 
         if not row:
@@ -312,8 +330,9 @@ ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
 
         return {
             **dict(row),
-            "status": "subscribed"
+            "status": "subscribed",
         }
+
 
     async def async_get_active_email_subscribers(self):
         return await self._fetch(

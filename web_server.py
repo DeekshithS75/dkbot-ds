@@ -56,8 +56,13 @@ async def handle_subscribe_email(request):
                 status=500
             )
 
+        messages = {
+            'subscribed': 'Subscription successful!',
+            'already_subscribed': 'This email is already subscribed.'
+        }
+
         return web.json_response({
-            'message': result['status'],
+            'message': messages[result['status']],
             'status': result['status']
         })
 
