@@ -1,4 +1,3 @@
-
 name: DK24 Event Digest
 
 on:
@@ -24,6 +23,16 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Check required secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GMAIL_API_TOKEN_BASE64: ${{ secrets.GMAIL_API_TOKEN_BASE64 }}
+          UNSUBSCRIBE_URL: ${{ secrets.UNSUBSCRIBE_URL }}
+        run: |
+          test -n "$DATABASE_URL" && echo "DATABASE_URL available" || echo "DATABASE_URL missing"
+          test -n "$GMAIL_API_TOKEN_BASE64" && echo "GMAIL token available" || echo "GMAIL token missing"
+          test -n "$UNSUBSCRIBE_URL" && echo "Unsubscribe URL available" || echo "Unsubscribe URL missing"
+
       - name: Run event digest
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -31,4 +40,3 @@ jobs:
           UNSUBSCRIBE_URL: ${{ secrets.UNSUBSCRIBE_URL }}
           WEBHOOK_SECRET_KEY: ${{ secrets.WEBHOOK_SECRET_KEY }}
         run: python run_digest.py
-
