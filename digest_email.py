@@ -6,6 +6,7 @@ from html import escape
 from email_sender import send_html_email
 
 from zoneinfo import ZoneInfo
+from urllib.parse import quote
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -86,13 +87,17 @@ async def send_event_digest(database):
         return
 
     recipients = await database.async_get_digest_recipients()
-    html_content = generate_digest_html(
-        upcoming_events,
-        config.UNSUBSCRIBE_URL,
-    )
 
     for recipient in recipients:
         email = recipient["email"]
+        token = recipient["unsubscribe_token"]
+
+        separator = "&" if "?" in config.UNSUBSCRIBE_URL else "?"
+        unsubscribe_url = (
+            f"{config.UNSUBSCRIBE_URL}{separator}token={quote(token, safe='')}"
+        )
+
+        html_content = generate_digest_html(upcoming_events, unsubscribe_url)
 
         sent = await send_html_email(
             email,
