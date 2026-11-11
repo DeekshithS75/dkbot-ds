@@ -44,7 +44,7 @@ async def main():
 
     site = web.TCPSite(
         runner,
-        "127.0.0.1",
+         "0.0.0.0",
         config.WEB_SERVER_PORT
     )
 

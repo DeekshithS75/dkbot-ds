@@ -157,6 +157,9 @@ ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
                 cur.execute(query, args)
                 conn.commit()
                 return cur.rowcount
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             self.pool.putconn(conn)
 
