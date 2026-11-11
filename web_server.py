@@ -2,7 +2,7 @@ from aiohttp import web
 import logging
 import config
 import re
-
+from html import escape
 async def handle_get_approved_events(request):
     """Returns approved events for public calendar consumption."""
     try:
@@ -79,7 +79,7 @@ async def handle_unsubscribe_email(request):
 
     if not token:
         return web.Response(status=400, text="Invalid unsubscribe link")
-
+    safe_token = escape(token, quote=True)
     return web.Response(
         text=f"""
         <!DOCTYPE html>
@@ -92,7 +92,7 @@ async def handle_unsubscribe_email(request):
             <h2>Unsubscribe from DK24 event updates</h2>
             <p>Are you sure you want to stop receiving event emails?</p>
             <form method="POST" action="/api/email-subscriptions/unsubscribe">
-                <input type="hidden" name="token" value="{token}">
+                <input type="hidden" name="token" value="{safe_token}">
                 <button type="submit">Confirm unsubscribe</button>
             </form>
         </body>

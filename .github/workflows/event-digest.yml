@@ -1,7 +1,10 @@
+
 name: DK24 Event Digest
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 3 1,16 * *"
 
 jobs:
   send-digest:
@@ -25,7 +28,17 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GMAIL_API_TOKEN_BASE64: ${{ secrets.GMAIL_API_TOKEN_BASE64 }}
           UNSUBSCRIBE_URL: ${{ secrets.UNSUBSCRIBE_URL }}
+          WEBHOOK_SECRET_KEY: ${{ secrets.WEBHOOK_SECRET_KEY }}
         run: |
           test -n "$DATABASE_URL" || { echo "DATABASE_URL missing"; exit 1; }
           test -n "$GMAIL_API_TOKEN_BASE64" || { echo "GMAIL_API_TOKEN_BASE64 missing"; exit 1; }
           test -n "$UNSUBSCRIBE_URL" || { echo "UNSUBSCRIBE_URL missing"; exit 1; }
+          test -n "$WEBHOOK_SECRET_KEY" || { echo "WEBHOOK_SECRET_KEY missing"; exit 1; }
+
+      - name: Run event digest
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GMAIL_API_TOKEN_BASE64: ${{ secrets.GMAIL_API_TOKEN_BASE64 }}
+          UNSUBSCRIBE_URL: ${{ secrets.UNSUBSCRIBE_URL }}
+          WEBHOOK_SECRET_KEY: ${{ secrets.WEBHOOK_SECRET_KEY }}
+        run: python run_digest.py

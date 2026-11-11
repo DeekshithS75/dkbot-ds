@@ -86,27 +86,23 @@ async def send_event_digest(database):
         return
 
     recipients = await database.async_get_digest_recipients()
+    html_content = generate_digest_html(
+        upcoming_events,
+        config.UNSUBSCRIBE_URL,
+    )
 
     for recipient in recipients:
         email = recipient["email"]
-        token = recipient["unsubscribe_token"]
-
-        unsubscribe_url = f"{config.UNSUBSCRIBE_URL}?token={token}"
-
-        html_content = generate_digest_html(
-            upcoming_events,
-            unsubscribe_url
-        )
 
         sent = await send_html_email(
-        email,
-        "DK24 Upcoming Community Events",
-        html_content
+            email,
+            "DK24 Upcoming Community Events",
+            html_content
         )
 
         if sent:
-            logger.info("Digest sent successfully to %s", email)
+            logger.info("Digest sent to %s", email)
         else:
             logger.error("Failed to send digest to %s", email)
 
-        logger.info("Event digest processing completed.")
+    logger.info("Event digest processing completed.")
