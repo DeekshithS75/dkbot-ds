@@ -29,7 +29,7 @@ GUILD_ID = int(
 )  # Default provided in original code
 
 # --- Webhook ---
-WEBHOOK_SECRET_KEY = get_env("WEBHOOK_SECRET_KEY", "default-secret-key-please-change")
+WEBHOOK_SECRET_KEY = get_env("WEBHOOK_SECRET_KEY", required=True)
 WEB_SERVER_PORT = int(get_env("PORT", 8080))
 
 # --- Database ---

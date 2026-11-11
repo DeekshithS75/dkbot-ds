@@ -5,8 +5,19 @@ from html import escape
 
 from email_sender import send_html_email
 
+from zoneinfo import ZoneInfo
+
+IST = ZoneInfo("Asia/Kolkata")
+
 logger = logging.getLogger(__name__)
 
+def _parse_event_datetime(value):
+    event_datetime = datetime.fromisoformat(value)
+
+    if event_datetime.tzinfo is None:
+        return event_datetime.replace(tzinfo=IST)
+
+    return event_datetime.astimezone(IST)
 
 def generate_digest_html(events, unsubscribe_url):
     event_cards = []
@@ -17,7 +28,7 @@ def generate_digest_html(events, unsubscribe_url):
         location = escape(event.get("location", "Location not specified"))
         organization = escape(event.get("organizationName", "DK24"))
 
-        start_date = datetime.fromisoformat(event["startDateTime"])
+        start_date = _parse_event_datetime(event["startDateTime"])
         date = start_date.strftime("%d %B %Y")
         time = start_date.strftime("%I:%M %p")
 
@@ -57,7 +68,7 @@ def generate_digest_html(events, unsubscribe_url):
 
 
 async def send_event_digest(database):
-    now = datetime.now().astimezone()
+    now = datetime.now(IST)
     end_date = now + timedelta(days=15)
 
     events = await database.async_get_approved_events()
@@ -65,7 +76,7 @@ async def send_event_digest(database):
     upcoming_events = []
 
     for event in events:
-        start_date = datetime.fromisoformat(event["startDateTime"])
+        start_date = _parse_event_datetime(event["startDateTime"])
 
         if now <= start_date <= end_date:
             upcoming_events.append(event)
@@ -87,10 +98,15 @@ async def send_event_digest(database):
             unsubscribe_url
         )
 
-        await send_html_email(
-            email,
-            "DK24 Upcoming Community Events",
-            html_content
+        sent = await send_html_email(
+        email,
+        "DK24 Upcoming Community Events",
+        html_content
         )
 
-    logger.info("Event digest processing completed.")
+        if sent:
+            logger.info("Digest sent successfully to %s", email)
+        else:
+            logger.error("Failed to send digest to %s", email)
+
+        logger.info("Event digest processing completed.")

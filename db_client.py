@@ -168,7 +168,12 @@ ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(query, args)
-                return cur.fetchall()
+                rows = cur.fetchall()
+                conn.commit()
+                return rows
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             self.pool.putconn(conn)
 
@@ -198,7 +203,11 @@ ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
             with conn.cursor() as cur:
                 cur.execute(query, args)
                 row = cur.fetchone()
+                conn.commit()
                 return row[0] if row else None
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             self.pool.putconn(conn)
 

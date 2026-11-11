@@ -1,9 +1,6 @@
 name: DK24 Event Digest
 
 on:
-  push:
-    branches:
-      - feat/email-subscriptions
   workflow_dispatch:
 
 jobs:
@@ -29,14 +26,6 @@ jobs:
           GMAIL_API_TOKEN_BASE64: ${{ secrets.GMAIL_API_TOKEN_BASE64 }}
           UNSUBSCRIBE_URL: ${{ secrets.UNSUBSCRIBE_URL }}
         run: |
-          test -n "$DATABASE_URL" && echo "DATABASE_URL available" || echo "DATABASE_URL missing"
-          test -n "$GMAIL_API_TOKEN_BASE64" && echo "GMAIL token available" || echo "GMAIL token missing"
-          test -n "$UNSUBSCRIBE_URL" && echo "Unsubscribe URL available" || echo "Unsubscribe URL missing"
-
-      - name: Run event digest
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GMAIL_API_TOKEN_BASE64: ${{ secrets.GMAIL_API_TOKEN_BASE64 }}
-          UNSUBSCRIBE_URL: ${{ secrets.UNSUBSCRIBE_URL }}
-          WEBHOOK_SECRET_KEY: ${{ secrets.WEBHOOK_SECRET_KEY }}
-        run: python run_digest.py
+          test -n "$DATABASE_URL" || { echo "DATABASE_URL missing"; exit 1; }
+          test -n "$GMAIL_API_TOKEN_BASE64" || { echo "GMAIL_API_TOKEN_BASE64 missing"; exit 1; }
+          test -n "$UNSUBSCRIBE_URL" || { echo "UNSUBSCRIBE_URL missing"; exit 1; }
