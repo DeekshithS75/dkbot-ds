@@ -432,13 +432,14 @@ ADD COLUMN IF NOT EXISTS unsubscribe_token_hash VARCHAR(64) UNIQUE;
                 )
 
                 cur.execute(
-                    """
-                    UPDATE email_unsubscribe_tokens
-                    SET used_at = CURRENT_TIMESTAMP
-                    WHERE id = %s
-                    """,
-                    (token_id,)
-                )
+    """
+    UPDATE email_unsubscribe_tokens
+    SET used_at = CURRENT_TIMESTAMP
+    WHERE subscriber_id = %s
+        AND used_at IS NULL
+    """,
+    (subscriber_id,)
+)
 
                 conn.commit()
                 return True
